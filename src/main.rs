@@ -1,12 +1,14 @@
 use std::env;
 use std::fs::File;
 // use std::io::prelude::*;
-use std::io::{self, BufRead, BufReader};
+use std::io::{BufRead, BufReader};
 use rand::prelude::*;
+use termion::color;
+use std::collections::HashMap;
 
 
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 enum Color {
     Red,
     Green,
@@ -20,6 +22,44 @@ enum Color {
     DarkCyan,
     DarkMagenta,
     DarkYellow
+}
+
+#[derive(Hash, Eq, PartialEq, Debug)]
+struct ColorMap {
+    color: Color,
+    code: i32
+}
+
+impl ColorMap {
+    fn new(color: &Color, code: i32) -> ColorMap {
+        ColorMap { color: *color, code: code}
+    }
+}
+
+
+fn initializeColorMaps() -> &HashMap<Color, i32> {
+    let mut colorMaps: HashMap<_, _> = HashMap::new();
+    let keys = vec![
+        Color::Red, Color::Green, Color::Blue,
+        Color::Cyan, Color::Magenta, Color::Yellow,
+        Color::DarkRed, Color::DarkGreen, Color::DarkBlue,
+        Color::DarkCyan, Color::DarkMagenta, Color::DarkYellow
+    ];
+    let values = vec![
+        0xff0000i32, 0x00ff00i32, 0x0000ffi32,
+        0x00ffffi32, 0xff00ffi32, 0xffff00i32,
+        0x7f0000i32, 0x007f00i32, 0x00007fi32,
+        0x007f7fi32, 0x7f007fi32, 0x7f7f00i32
+    ];
+    let color_maps: HashMap<_, _> = keys.iter().zip(values.iter()).collect();
+
+    return color_maps.clone();
+}
+
+#[test]
+fn test_initializeColorMaps() {
+    initializeColorMaps();
+    assert_eq!(colorMaps[&Color::Red].code, 0xff0000i32);
 }
 
 fn count_max_columns(csv_data: Vec<String>) -> usize {
@@ -62,6 +102,7 @@ fn decide_colors(csv_data: Vec<String>) -> Vec<Color> {
 
 fn colorize_cell(line: String) -> String {
     // この辺から再開
+    return line.to_string();
 }
 
 fn colorize(csv_data: Vec<String>, colors: Vec<Color>) -> Vec<String> {
@@ -77,6 +118,8 @@ fn main() {
     let reader = BufReader::new(fh);
     let lines = reader.lines();
     let mut csv_data: Vec<String> = vec![];
+
+    initializeColorMaps();
 
     for line in lines {
         csv_data.push(line.unwrap())
