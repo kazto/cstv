@@ -1,11 +1,9 @@
 use std::env;
 use std::fs::File;
-// use std::io::prelude::*;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, stdout, Write, BufWriter};
 use rand::prelude::*;
-use termion::color;
 use std::collections::HashMap;
-
+use std::clone::Clone;
 
 #[repr(u8)]
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -21,48 +19,40 @@ enum Color {
     DarkBlue,
     DarkCyan,
     DarkMagenta,
-    DarkYellow
+    DarkYellow,
+    Reset
 }
 
-#[derive(Hash, Eq, PartialEq, Debug)]
-struct ColorMap {
-    color: Color,
-    code: i32
-}
-
-impl ColorMap {
-    fn new(color: &Color, code: i32) -> ColorMap {
-        ColorMap { color: *color, code: code}
-    }
-}
-
-
-fn initializeColorMaps() -> &HashMap<Color, i32> {
-    let mut colorMaps: HashMap<_, _> = HashMap::new();
+fn initialize_color_maps() -> HashMap<Color, String> {
     let keys = vec![
         Color::Red, Color::Green, Color::Blue,
         Color::Cyan, Color::Magenta, Color::Yellow,
         Color::DarkRed, Color::DarkGreen, Color::DarkBlue,
-        Color::DarkCyan, Color::DarkMagenta, Color::DarkYellow
+        Color::DarkCyan, Color::DarkMagenta, Color::DarkYellow,
+        Color::Reset
     ];
     let values = vec![
-        0xff0000i32, 0x00ff00i32, 0x0000ffi32,
-        0x00ffffi32, 0xff00ffi32, 0xffff00i32,
-        0x7f0000i32, 0x007f00i32, 0x00007fi32,
-        0x007f7fi32, 0x7f007fi32, 0x7f7f00i32
+        String::from("\x1b[31m"), String::from("\x1b[32m"), String::from("\x1b[34m"), 
+        String::from("\x1b[36m"), String::from("\x1b[35m"), String::from("\x1b[33m"), 
+        String::from("\x1b[31;1m"), String::from("\x1b[32;1m"), String::from("\x1b[34;1m"), 
+        String::from("\x1b[36;1m"), String::from("\x1b[35;1m"), String::from("\x1b[33;1m"), 
+        String::from("\x1b[0m"), 
     ];
-    let color_maps: HashMap<_, _> = keys.iter().zip(values.iter()).collect();
-
-    return color_maps.clone();
+    let mut color_maps: HashMap<Color, String> = HashMap::new();
+    keys.iter().zip(values.iter()).for_each(|(&k, v)| {
+        color_maps.insert(k, String::from(v));
+        return ().into();
+    });
+    return color_maps;
 }
 
 #[test]
-fn test_initializeColorMaps() {
-    initializeColorMaps();
-    assert_eq!(colorMaps[&Color::Red].code, 0xff0000i32);
+fn test_initialize_color_maps() {
+    let color_maps = initialize_color_maps();
+    assert_eq!(color_maps[&Color::Red], 0xff0000i32);
 }
 
-fn count_max_columns(csv_data: Vec<String>) -> usize {
+fn count_max_columns(csv_data: &Vec<String>) -> usize {
     let mut count: usize = 0;
 
     for line in csv_data {
@@ -79,36 +69,41 @@ fn test_count_max_columns() {
     let input: Vec<String> = 
         vec!["foo,bar,buz", "hoge,hero,hoe,hoe,hoe", "xxx,yyyyy,zz,aaa"]
         .iter().map(|s| s.to_string()).collect();
-    let count: usize = count_max_columns(input);
+    let count: usize = count_max_columns(&input);
     assert_eq!(count, 5);
 }
 
-fn decide_colors(csv_data: Vec<String>) -> Vec<Color> {
-    let colors: Vec<Color> = vec![
-        Color::Red, Color::Green, Color::Blue,
-        Color::Cyan, Color::Magenta, Color::Yellow,
-        Color::DarkRed, Color::DarkGreen, Color::DarkBlue,
-        Color::DarkCyan, Color::DarkMagenta, Color::DarkYellow
-    ];
-    let mut result: Vec<Color> = vec![];
+fn decide_colors(csv_data: &Vec<String>, color_maps: HashMap<Color, String>) -> Vec<String> {
+    let mut result: Vec<String> = vec![];
     let max_size = count_max_columns(csv_data);
     let mut rng = rand::thread_rng();
+    let mut keys = color_maps.keys().collect::<Vec<&Color>>();
+    keys.shuffle(&mut rng);
     for _ in 0..max_size {
-        result.push(colors[rng.gen_range(0..colors.len())])
+        let random_key = keys.pop().unwrap();
+        result.push(String::from(&color_maps[random_key]));
     }
 
     return result;
 }
 
-fn colorize_cell(line: String) -> String {
-    // この辺から再開
-    return line.to_string();
+fn colorize_cell(cell: &str, color: &str) -> String {
+    return [color, cell, "\x1b[0m"].concat();
 }
 
-fn colorize(csv_data: Vec<String>, colors: Vec<Color>) -> Vec<String> {
-    let mut colorized: Vec<String> = vec![];
-
-    return colorized;
+fn colorize(csv_data: &Vec<String>, colors: Vec<String>) -> Vec<String> {
+    return csv_data.iter().map(|line|
+        line.split(",")
+            .collect::<Vec<&str>>()
+            .iter()
+            .zip(colors.iter())
+            .map(|(cell, color)|
+                colorize_cell(cell, color)
+            )
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .collect::<Vec<String>>();
 }
 
 fn main() {
@@ -118,16 +113,30 @@ fn main() {
     let reader = BufReader::new(fh);
     let lines = reader.lines();
     let mut csv_data: Vec<String> = vec![];
+    let color_maps: HashMap<Color, String>;
 
-    initializeColorMaps();
+    color_maps = initialize_color_maps();
 
     for line in lines {
-        csv_data.push(line.unwrap())
+        match line {
+            Err(_) => (),
+            Ok(v) => csv_data.push(v)
+        }
     }
 
-    let colors = decide_colors(csv_data);
-    
-    
-    
-    println!("Hello, world!");
+    let colors = decide_colors(&csv_data, color_maps);
+    let result = colorize(&csv_data, colors);
+
+    let out = stdout();
+    let mut out = BufWriter::new(out.lock());
+
+    for line in result {
+        out.write(line.as_bytes()).unwrap();
+        out.write(b"\n").unwrap();
+    }
+}
+
+#[test]
+fn test_colorize_cell() {
+    println!("\x1b[31mred\x1b[0mblack\x1b[36mcyan\x1b[0m");
 }
